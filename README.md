@@ -119,9 +119,10 @@ vez, sin perder datos ni contraseña:
 ```bash
 cd ~/actividad_solar
 git init -b main
-git remote add origin https://github.com/USUARIO/REPOSITORIO.git
+git remote add origin https://github.com/Demonio0N1/actividad-solar.git
 git fetch origin
 git reset --hard origin/main     # reemplaza solo los archivos del código
+git branch --set-upstream-to=origin/main main
 ```
 
 Desde entonces, cada actualización es:

@@ -486,7 +486,7 @@ actualizar_codigo() {
   paso "Trayendo la última versión"
   local antes
   antes="$(git rev-parse HEAD)"
-  git pull --ff-only
+  git pull --ff-only origin main
   if [[ "$(git rev-parse HEAD)" == "$antes" ]]; then
     ok "Ya estaba al día ($(git log -1 --format='%h %s'))"
     return
