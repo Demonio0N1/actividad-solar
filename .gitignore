@@ -1,0 +1,27 @@
+# Entornos y compilados: se recrean en cada máquina (npm install, setup_sun.sh)
+.venv/
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Secretos: nunca al repositorio
+.solar_vivo.json
+.solar_admin.json
+.env
+
+# Datos: cada servidor los descarga (npm run descargar) o los recibe por la página (Meteorología → Datos)
+data/
+figuras/
+Metorologia/
+
+# Material personal y del proyecto que no es código
+papers/
+avanc/
+plan_proyecto.html
+notebooks/
+
+# Paquetes y archivos sueltos
+actividad_solar_*.tar.gz
+pi5-oaq@*

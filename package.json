@@ -1,0 +1,32 @@
+{
+  "name": "actividad-solar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Estudio temporal de la actividad solar: página en vivo que muestra las ejecuciones de los scripts de Python",
+  "type": "module",
+  "scripts": {
+    "dev": "vite web",
+    "build": "vite build web",
+    "start": "node web/servidor/produccion.js",
+    "descargar": ".venv/bin/python src/descargar.py todo",
+    "procesar": ".venv/bin/python src/procesar.py",
+    "explorar": ".venv/bin/python src/explorar.py",
+    "dinamo": ".venv/bin/python src/modelo_dinamo.py",
+    "meteorologia": ".venv/bin/python src/meteorologia.py",
+    "modelo": ".venv/bin/python src/modelos/correr.py",
+    "modelo-publicado": ".venv/bin/python src/modelos/correr.py --publicado",
+    "actualizar": "npm run descargar && npm run procesar && npm run explorar",
+    "todo": "npm run descargar && npm run procesar && npm run explorar && npm run dinamo",
+    "diario": "npm run actualizar && npm run meteorologia && npm run dinamo && npm run modelo-publicado",
+    "contrasena": "node web/servidor/contrasena.js"
+  },
+  "devDependencies": {
+    "vite": "^8.3.1"
+  },
+  "dependencies": {
+    "uplot": "^1.6.32"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

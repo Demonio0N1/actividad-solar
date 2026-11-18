@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Laboratorio de modelos solares</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/src/tokens.css">
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']] }, svg: { fontCache: 'global' }, options: { enableMenu: false }, startup: { typeset: false } };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js" defer></script>
+</head>
+<body>
+<nav class="sitio" aria-label="Secciones del sitio">
+  <a class="marca" href="/">Monitoreo del Sol</a>
+  <a class="tab" href="/">En vivo</a>
+  <a class="tab" href="/modelo">Modelo</a>
+  <a class="tab" href="/meteorologia">Meteorología</a>
+  <a class="tab" href="/laboratorio" aria-current="page">Laboratorio</a>
+  <span class="espacio"></span>
+  <span class="conexion" id="conexion" data-estado="sin-servidor" hidden>conectando…</span>
+  <button type="button" class="boton-texto" id="salir" hidden>Cerrar sesión</button>
+</nav>
+
+<main class="vivo">
+  <!-- Acceso -->
+  <section class="entrar" id="vista-entrar" aria-labelledby="t-entrar">
+    <form class="panel entrar-caja" id="form-entrar">
+      <h1 id="t-entrar">Laboratorio</h1>
+      <p>Aquí se corren y modifican los modelos del ciclo solar, y se elige qué resultado se muestra en la página pública.</p>
+      <div class="campo">
+        <label for="contrasena">Contraseña</label>
+        <input type="password" id="contrasena" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="boton">Entrar</button>
+      <p class="error-form" id="error-entrar" role="alert" hidden></p>
+    </form>
+  </section>
+
+  <!-- Laboratorio -->
+  <div id="vista-lab" hidden>
+    <header class="intro">
+      <h1>Laboratorio de modelos</h1>
+      <p>Elija un modelo, cambie sus parámetros o su ecuación y córralo. La simulación se ve mientras avanza. Si el resultado le sirve, publíquelo: es lo que verán los visitantes en la página.</p>
+    </header>
+
+    <section class="bloque" aria-labelledby="t-modelos">
+      <h2 id="t-modelos" class="sr">Modelos</h2>
+      <div class="selector-modelos" id="selector-modelos" role="radiogroup" aria-label="Modelo"></div>
+    </section>
+
+    <div class="fila-lab">
+      <section class="panel" aria-labelledby="t-param">
+        <header class="panel-cab">
+          <h2 id="t-param">Parámetros</h2>
+          <button type="button" class="boton-texto" id="restablecer">Valores por defecto</button>
+        </header>
+        <p class="nota" id="modelo-descripcion"></p>
+        <div class="ecuacion-caja" id="ecuacion" aria-live="polite"></div>
+        <form id="form-param" class="form-param" novalidate></form>
+        <div class="botones">
+          <button type="button" class="boton" id="correr">Correr</button>
+          <button type="button" class="boton secundario" id="detener" disabled>Detener</button>
+        </div>
+        <p class="error-form" id="error-correr" role="alert" hidden></p>
+      </section>
+
+      <section class="panel" aria-labelledby="t-resultado">
+        <header class="panel-cab">
+          <div class="titulo"><h2 id="t-resultado">Resultado</h2><span class="chip todo" id="estado-corrida">sin correr</span></div>
+          <button type="button" class="boton" id="publicar" disabled>Publicar en la página</button>
+        </header>
+        <div id="lab-visor"></div>
+        <dl class="cifras-lista" id="lab-resumen"></dl>
+        <p class="nota" id="lab-nota"></p>
+      </section>
+    </div>
+
+    <section class="panel" aria-labelledby="t-corridas">
+      <header class="panel-cab">
+        <h2 id="t-corridas">Corridas guardadas</h2>
+        <span class="nota">Se guardan las últimas 50. La marcada como publicada es la que ve el público.</span>
+      </header>
+      <div class="tabla-envoltura"><table class="corridas"><thead><tr><th>Fecha</th><th>Modelo</th><th>Resumen</th><th></th></tr></thead><tbody id="corridas"></tbody></table></div>
+    </section>
+
+    <div class="fila-principal">
+      <section class="panel" aria-labelledby="t-ejec">
+        <header class="panel-cab">
+          <h2 id="t-ejec">Ejecuciones</h2>
+          <button type="button" class="boton secundario" id="actualizar-datos">Actualizar datos ahora</button>
+        </header>
+        <p class="nota">Descargar, procesar y regenerar figuras corre solo una vez al día. Este botón lo hace ahora.</p>
+        <div id="ejecuciones" class="ejecuciones"><p class="suave">Todavía no hay ejecuciones desde que arrancó el servidor.</p></div>
+      </section>
+      <section class="panel consola-panel" aria-labelledby="t-consola">
+        <header class="panel-cab">
+          <h2 id="t-consola">Consola</h2>
+          <button type="button" id="limpiar-consola" class="boton-texto">Limpiar</button>
+        </header>
+        <div id="consola" class="consola" role="log" aria-live="polite"></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="/src/laboratorio.js"></script>
+</body>
+</html>

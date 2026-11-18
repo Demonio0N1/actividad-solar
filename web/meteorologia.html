@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Meteorología OAQ</title>
+<meta name="description" content="Consulta, comparación y calidad de los datos de las estaciones meteorológicas del Observatorio Astronómico de Quito.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/src/tokens.css">
+</head>
+<body>
+<nav class="sitio" aria-label="Secciones del sitio">
+  <a class="marca" href="/">Monitoreo del Sol</a>
+  <a class="tab" href="/">En vivo</a>
+  <a class="tab" href="/modelo">Modelo</a>
+  <a class="tab" href="/meteorologia" aria-current="page">Meteorología</a>
+  <a class="tab" href="/laboratorio">Laboratorio</a>
+  <span class="espacio"></span>
+</nav>
+
+<main class="vivo">
+  <header class="intro">
+    <h1>Red meteorológica del OAQ</h1>
+    <p>Datos de las estaciones activas del Observatorio Astronómico de Quito, registrados cada 5 minutos. Las horas son locales de Ecuador (UTC−5); las unidades, las de la OMM.</p>
+  </header>
+
+  <div class="m-pestanas" role="tablist" aria-label="Secciones de meteorología">
+    <button type="button" role="tab" id="tab-panel" aria-controls="sec-panel" aria-selected="true">Panel</button>
+    <button type="button" role="tab" id="tab-explorador" aria-controls="sec-explorador" aria-selected="false">Explorador</button>
+    <button type="button" role="tab" id="tab-calidad" aria-controls="sec-calidad" aria-selected="false">Calidad y eventos</button>
+    <button type="button" role="tab" id="tab-datos" aria-controls="sec-datos" aria-selected="false">Datos</button>
+  </div>
+
+  <p class="m-error" id="m-error" hidden></p>
+
+  <!-- ───────── Panel ───────── -->
+  <section class="m-seccion" id="sec-panel" role="tabpanel" aria-labelledby="tab-panel">
+    <section class="panel" aria-labelledby="t-red">
+      <header class="panel-cab">
+        <h2 id="t-red">Estado de la red</h2>
+        <span class="actualizado" id="red-consulta"></span>
+      </header>
+      <dl class="m-indicadores" id="red-indicadores"></dl>
+      <div class="m-tabla-envoltura">
+        <table class="m-tabla" id="red-tabla">
+          <thead><tr><th>Estación</th><th>Estado (ahora)</th><th>Última medición</th><th>Último registro recibido</th><th>Archivo de datos</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="bloque" aria-labelledby="t-tarjetas">
+      <header class="bloque-cab">
+        <h2 id="t-tarjetas">Última medición de cada estación</h2>
+        <p>Cada valor es el último válido de la estación, con la hora en que se midió. <span class="m-aviso-icono" aria-hidden="true">▲</span> indica una corrección no documentada: compare con precaución.</p>
+      </header>
+      <div class="m-tarjetas" id="tarjetas"></div>
+    </section>
+
+    <section class="bloque" aria-labelledby="t-reciente">
+      <header class="bloque-cab">
+        <h2 id="t-reciente">Últimas 72 horas</h2>
+        <p id="reciente-sub">Valores cada 5 minutos, sin los valores marcados.</p>
+      </header>
+      <div class="panel">
+        <div class="m-graficos">
+          <figure><figcaption>Temperatura del aire (°C)</figcaption><div id="r-temperatura" class="grafico"></div></figure>
+          <figure><figcaption>Humedad relativa (%)</figcaption><div id="r-humedad" class="grafico"></div></figure>
+          <figure><figcaption>Radiación solar global (W/m²)</figcaption><div id="r-radiacion_solar" class="grafico"></div></figure>
+          <figure><figcaption>Intensidad de precipitación (mm/h)</figcaption><div id="r-lluvia_intensidad" class="grafico"></div></figure>
+        </div>
+        <ul class="m-avisos" id="reciente-avisos"></ul>
+      </div>
+    </section>
+  </section>
+
+  <!-- ───────── Explorador ───────── -->
+  <section class="m-seccion" id="sec-explorador" role="tabpanel" aria-labelledby="tab-explorador" hidden>
+    <form class="panel m-consulta" id="consulta">
+      <h2 class="sr">Consulta</h2>
+      <fieldset class="campo">
+        <legend>Estaciones</legend>
+        <div class="m-casillas" id="q-estaciones"></div>
+      </fieldset>
+      <fieldset class="campo">
+        <legend>Variables</legend>
+        <div class="m-variables" id="q-variables"></div>
+      </fieldset>
+      <div class="m-fila">
+        <div class="campo"><label for="q-desde">Desde</label><input type="date" id="q-desde" required></div>
+        <div class="campo"><label for="q-hasta">Hasta (incluido)</label><input type="date" id="q-hasta" required></div>
+        <div class="m-atajos" id="q-atajos" aria-label="Periodos rápidos">
+          <button type="button" class="boton-texto" data-dias="1">1 día</button>
+          <button type="button" class="boton-texto" data-dias="3">3 días</button>
+          <button type="button" class="boton-texto" data-dias="7">7 días</button>
+          <button type="button" class="boton-texto" data-dias="30">30 días</button>
+          <button type="button" class="boton-texto" data-dias="todo">Todo</button>
+        </div>
+      </div>
+      <div class="m-fila">
+        <div class="campo">
+          <label for="q-h0">Horas del día</label>
+          <div class="m-horas"><select id="q-h0"></select><span>a</span><select id="q-h1"></select></div>
+        </div>
+        <div class="campo">
+          <label for="q-resolucion">Resolución</label>
+          <select id="q-resolucion">
+            <option value="auto">Automática</option>
+            <option value="5min">Cada 5 min (registros)</option>
+            <option value="hora">Por hora</option>
+            <option value="dia">Por día</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="q-marcados">Valores marcados</label>
+          <select id="q-marcados">
+            <option value="excluir">Excluir (recomendado)</option>
+            <option value="incluir">Incluir y resaltar</option>
+          </select>
+        </div>
+        <div class="botones"><button type="submit" class="boton">Consultar</button></div>
+      </div>
+      <p class="nota" id="q-ayuda"></p>
+    </form>
+
+    <div class="m-resultado" id="resultado" hidden>
+      <header class="panel-cab">
+        <h2 id="r-titulo">Resultado</h2>
+        <span class="actualizado" id="r-resumen"></span>
+      </header>
+      <ul class="m-avisos" id="r-avisos"></ul>
+      <p class="nota">Arrastre sobre un gráfico para ampliar un intervalo (se amplía en todos); doble clic para volver. Las líneas verticales punteadas marcan discontinuidades conocidas de la serie.</p>
+      <div class="m-graficos m-graficos-explorador" id="r-graficos"></div>
+      <section class="panel" aria-labelledby="t-registros">
+        <header class="panel-cab">
+          <h3 id="t-registros">Tabla de datos</h3>
+          <button type="button" class="boton" id="r-descargar">Descargar CSV</button>
+        </header>
+        <p class="nota" id="r-tabla-nota"></p>
+        <div class="m-tabla-envoltura m-tabla-alta"><table class="m-tabla m-tabla-datos" id="r-tabla"></table></div>
+      </section>
+    </div>
+    <p class="m-cargando" id="r-cargando" hidden>Cargando datos…</p>
+  </section>
+
+  <!-- ───────── Calidad y eventos ───────── -->
+  <section class="m-seccion" id="sec-calidad" role="tabpanel" aria-labelledby="tab-calidad" hidden>
+    <section class="panel" aria-labelledby="t-cal">
+      <header class="panel-cab"><h2 id="t-cal">Calidad de los datos por estación</h2><span class="actualizado" id="cal-generado"></span></header>
+      <p class="nota">Ningún dato se borra ni se corrige: los valores anómalos se marcan y, por defecto, quedan fuera de los promedios y comparaciones.</p>
+      <div class="m-tabla-envoltura"><table class="m-tabla" id="cal-tabla"></table></div>
+      <dl class="m-marcas" id="cal-marcas"></dl>
+    </section>
+    <section class="bloque" aria-labelledby="t-obs">
+      <header class="bloque-cab"><h2 id="t-obs">Observaciones por estación</h2><p>Calculadas a partir de los propios datos cada vez que se procesan.</p></header>
+      <div class="m-observaciones" id="cal-obs"></div>
+    </section>
+    <section class="panel" aria-labelledby="t-eventos">
+      <header class="panel-cab"><h2 id="t-eventos">Eventos conocidos</h2></header>
+      <div class="m-tabla-envoltura"><table class="m-tabla" id="cal-eventos"></table></div>
+    </section>
+    <section class="panel" aria-labelledby="t-catalogo">
+      <header class="panel-cab"><h2 id="t-catalogo">Variables</h2></header>
+      <p class="nota" id="cal-rangos"></p>
+      <div class="m-tabla-envoltura"><table class="m-tabla" id="cal-variables"></table></div>
+    </section>
+  </section>
+
+  <!-- ───────── Datos: archivos y carga ───────── -->
+  <section class="m-seccion" id="sec-datos" role="tabpanel" aria-labelledby="tab-datos" hidden>
+    <section class="panel" aria-labelledby="t-archivos">
+      <header class="panel-cab">
+        <h2 id="t-archivos">Archivos de las estaciones</h2>
+        <span class="chip todo" id="d-proceso">–</span>
+      </header>
+      <p class="nota">Un archivo Parquet por estación, en la carpeta <code>Metorologia/</code> del servidor. Cuando uno cambia, la página vuelve a procesar los datos sola, sin importar cómo llegó el archivo: subido aquí, copiado a la carpeta o escrito por la adquisición.</p>
+      <div class="m-tabla-envoltura"><table class="m-tabla" id="d-tabla"></table></div>
+      <p class="nota" id="d-ultimo"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="t-cargar">
+      <header class="panel-cab">
+        <h2 id="t-cargar">Cargar archivos nuevos</h2>
+        <button type="button" class="boton-texto" id="d-salir" hidden>Cerrar sesión</button>
+      </header>
+
+      <form class="m-entrar" id="d-entrar" hidden>
+        <p>Para cargar datos, entre con la contraseña del laboratorio.</p>
+        <div class="m-fila">
+          <div class="campo"><label for="d-contrasena">Contraseña</label><input type="password" id="d-contrasena" autocomplete="current-password" required></div>
+          <div class="botones"><button type="submit" class="boton">Entrar</button></div>
+        </div>
+        <p class="m-alerta" id="d-error-entrar" role="alert" hidden></p>
+      </form>
+
+      <div id="d-carga" hidden>
+        <label class="m-soltar" id="d-soltar">
+          <input type="file" id="d-archivo" accept=".parquet" multiple>
+          <b>Elija los archivos .parquet</b> o arrástrelos aquí
+          <span class="nota">Cada archivo reemplaza al de su estación (la tabla maestra completa, como la genera la adquisición). Antes de reemplazar se revisa y se le muestra qué cambia; el archivo anterior se guarda como copia.</span>
+        </label>
+        <div class="m-subidas" id="d-subidas"></div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<footer class="pie">
+  <p>Datos: red de estaciones meteorológicas del Observatorio Astronómico de Quito (EPN). Equipos Ambient Weather WS-2000.</p>
+</footer>
+
+<script type="module" src="/src/meteorologia.js"></script>
+</body>
+</html>

@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Dínamo αΩ del proyecto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/src/tokens.css">
+<link rel="stylesheet" href="/src/documento.css">
+<link rel="stylesheet" href="/src/modelo.css">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+    svg: { fontCache: 'global' },
+    options: { enableMenu: false },
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+</head>
+<body>
+<nav class="sitio" aria-label="Secciones del sitio">
+  <a class="marca" href="/">Monitoreo del Sol</a>
+  <a class="tab" href="/">En vivo</a>
+  <a class="tab" href="/modelo" aria-current="page">Modelo</a>
+  <a class="tab" href="/meteorologia">Meteorología</a>
+  <a class="tab" href="/laboratorio">Laboratorio</a>
+  <span class="espacio"></span>
+  <span class="conexion" id="conexion" data-estado="sin-servidor">sin servidor</span>
+</nav>
+<!--contenido-->
+<div class="page">
+
+<header class="top">
+  <span class="eyebrow">Modelo · src/modelo_dinamo.py</span>
+  <h1>El dínamo αΩ del proyecto</h1>
+  <p class="lede">Qué parte del Sol estamos simulando, de qué ecuaciones sale el modelo, qué simplificaciones hace, cómo las resuelve el script de Python paso a paso y qué tan bien reproduce el ciclo solar observado.</p>
+  <div class="facts">
+    <span><b>1</b> dimensión (latitud)</span>
+    <span><b>121</b> puntos, cada <b>1.5°</b></span>
+    <span><b>58 361</b> pasos de tiempo</span>
+    <span>unos <b>2 s</b> por simulación</span>
+    <span>número de dínamo crítico <b>D ≈ −587</b></span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contenido">
+  <a href="#que">Qué simulamos</a>
+  <a href="#fisica">De la MHD al campo medio</a>
+  <a href="#modelo">El modelo 1D</a>
+  <a href="#script">Cómo funciona el script</a>
+  <a href="#resultados">Resultados medidos</a>
+  <a href="#limites">Limitaciones</a>
+  <a href="#siguiente">Próximos pasos</a>
+  <a href="#otros">Otros modelos</a>
+  <a href="#refs">Referencias</a>
+</nav>
+
+<!-- 1 · QUÉ SIMULAMOS -->
+<section id="que">
+  <header>
+    <span class="eyebrow">1 · Qué simulamos</span>
+    <h2>El campo magnético que produce las manchas</h2>
+  </header>
+  <div class="prose stack">
+    <p>Las manchas solares son los lugares donde tubos de campo magnético intenso atraviesan la fotosfera. Ese campo es <b>toroidal</b>: corre en dirección este–oeste, en anillos paralelos al ecuador. Se cree que se acumula cerca de la base de la zona convectiva, a unos 0.7 radios solares, donde la rotación diferencial lo estira. Cuando se vuelve lo bastante intenso, flota hacia la superficie y emerge como un par de manchas de polaridad opuesta <a class="ref" href="#r-parker55a">[2]</a>.</p>
+    <p>El Sol además tiene un campo <b>poloidal</b>, de norte a sur, parecido al de un imán, que domina en los polos. El <b>dínamo solar</b> es el mecanismo que convierte uno en el otro y viceversa, una y otra vez. Ese ir y venir es el ciclo de actividad <a class="ref" href="#r-charbonneau">[9]</a>.</p>
+    <p>El modelo simula cómo evolucionan en el tiempo, para cada latitud, esas dos componentes del campo, promediadas en longitud. La cantidad que se compara con las manchas es el campo toroidal <span class="mono-in">B(λ, t)</span>. Donde |B| es grande, habría manchas.</p>
+  </div>
+
+  <h3>Qué observaciones intenta reproducir</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Observación</th><th>En el modelo</th><th>¿Lo reproduce?</th></tr></thead>
+      <tbody>
+        <tr><td><b>Ciclo de ~11 años</b> en el número de manchas <a class="ref" href="#r-hathaway">[12]</a></td><td>⟨B²⟩ en latitudes bajas oscila con la mitad del periodo de B</td><td><span class="chip ok">sí</span> <span class="sub">la duración en años se fija al escalar el tiempo (sección 5)</span></td></tr>
+        <tr><td><b>Inversión de polaridad</b> en cada ciclo: el ciclo magnético dura ~22 años <a class="ref" href="#r-hale">[13]</a></td><td>B cambia de signo cada medio periodo</td><td><span class="chip ok">sí</span></td></tr>
+        <tr><td><b>Ley de Hale:</b> polaridad opuesta en cada hemisferio <a class="ref" href="#r-hale">[13]</a></td><td>B antisimétrico respecto al ecuador (paridad dipolar)</td><td><span class="chip next">sí, pero impuesta</span> <span class="sub">el código la fuerza en cada paso (sección 4)</span></td></tr>
+        <tr><td><b>Ley de Spörer:</b> las manchas aparecen a ~30° y migran al ecuador (diagrama mariposa) <a class="ref" href="#r-maunder">[14]</a></td><td>la onda de dínamo con D &lt; 0 viaja hacia el ecuador</td><td><span class="chip next">parcial</span> <span class="sub">migra de 54° a 16°; en el Sol, de ~30° a ~5°</span></td></tr>
+        <tr><td><b>Subida rápida y bajada lenta</b> del ciclo (relacionado con el efecto Waldmeier) <a class="ref" href="#r-waldmeier">[15]</a></td><td>forma de la curva ⟨B²⟩</td><td><span class="chip next">parcial</span> <span class="sub">la forma es asimétrica, pero todos los ciclos son iguales</span></td></tr>
+        <tr><td><b>Ciclos de distinta intensidad</b> y mínimos prolongados (Maunder)</td><td>requiere fluctuaciones</td><td><span class="chip error">no</span> <span class="sub">el modelo es determinista</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 2 · FÍSICA -->
+<section id="fisica">
+  <header>
+    <span class="eyebrow">2 · De la MHD al campo medio</span>
+    <h2>De dónde salen las ecuaciones</h2>
+  </header>
+  <div class="prose stack">
+    <p>El plasma solar conduce muy bien la electricidad. En la aproximación magnetohidrodinámica (MHD), el campo magnético <b>B</b> evoluciona según la <b>ecuación de inducción</b>:</p>
+  </div>
+  <div class="ec"><div class="ec-cuerpo">\[ \frac{\partial \mathbf{B}}{\partial t} = \nabla \times \left( \mathbf{u} \times \mathbf{B} \right) + \eta \, \nabla^2 \mathbf{B} \]</div><span class="ec-num">(1)</span></div>
+  <div class="prose stack">
+    <p>El primer término describe cómo el flujo <b>u</b> arrastra, estira y tuerce las líneas de campo. El segundo, cómo el campo se difunde con la difusividad magnética η. En el Sol el número de Reynolds magnético \(R_m = UL/\eta\) es enorme (\(\gtrsim 10^{8}\)): el campo queda "congelado" en el plasma y es el movimiento el que manda.</p>
+    <p>Resolver (1) en 3D para toda la zona convectiva es un problema de supercomputadoras. Además, el <b>teorema de Cowling</b> <a class="ref" href="#r-cowling">[3]</a> prohíbe que un flujo axisimétrico mantenga un campo axisimétrico: el dínamo necesita los movimientos turbulentos no axisimétricos de la convección. La <b>teoría de campo medio</b> <a class="ref" href="#r-skr">[4]</a><a class="ref" href="#r-kr">[5]</a><a class="ref" href="#r-moffatt">[6]</a> resuelve esto separando cada campo en un promedio y una fluctuación, \(\mathbf{B} = \overline{\mathbf{B}} + \mathbf{b}'\) y \(\mathbf{u} = \overline{\mathbf{U}} + \mathbf{u}'\). Al promediar (1) aparece un término nuevo, la fuerza electromotriz turbulenta \(\boldsymbol{\mathcal{E}} = \overline{\mathbf{u}' \times \mathbf{b}'}\), que para turbulencia isótropa se aproxima como:</p>
+  </div>
+  <div class="ec"><div class="ec-cuerpo">\[ \boldsymbol{\mathcal{E}} \approx \alpha \, \overline{\mathbf{B}} - \eta_t \, \nabla \times \overline{\mathbf{B}}, \qquad \alpha \approx -\frac{\tau_c}{3}\, \overline{\mathbf{u}' \cdot (\nabla \times \mathbf{u}')} \]</div><span class="ec-num">(2)</span></div>
+  <div class="prose stack">
+    <p><b>α</b> es proporcional a la <b>helicidad</b> de la convección: celdas convectivas que, por efecto de la fuerza de Coriolis, suben girando. Tiene signo opuesto en cada hemisferio. <b>η<sub>t</sub></b> es la difusividad turbulenta, mucho mayor que η; τ<sub>c</sub> es el tiempo de vida de las celdas. La ecuación para el campo medio queda:</p>
+  </div>
+  <div class="ec"><div class="ec-cuerpo">\[ \frac{\partial \overline{\mathbf{B}}}{\partial t} = \nabla \times \left( \overline{\mathbf{U}} \times \overline{\mathbf{B}} + \alpha\, \overline{\mathbf{B}} \right) + \eta_t \nabla^2 \overline{\mathbf{B}} \]</div><span class="ec-num">(3)</span></div>
+  <div class="prose stack">
+    <p>Para un campo axisimétrico conviene escribir \(\overline{\mathbf{B}} = \nabla \times \left( A\, \hat{\mathbf{e}}_\phi \right) + B\, \hat{\mathbf{e}}_\phi\): el potencial vector <b>A</b> describe el campo poloidal y <b>B</b> el toroidal. Si el flujo medio es solo la rotación diferencial, \(\overline{\mathbf{U}} = r\sin\theta\,\Omega(r,\theta)\,\hat{\mathbf{e}}_\phi\), la ecuación (3) se separa en dos <a class="ref" href="#r-charbonneau">[9]</a>:</p>
+  </div>
+  <div class="ec"><div class="ec-cuerpo">\[ \frac{\partial A}{\partial t} = \underbrace{\alpha B}_{\text{efecto }\alpha} + \eta_t \left( \nabla^2 - \frac{1}{r^2 \sin^2\theta} \right) A \]
+  \[ \frac{\partial B}{\partial t} = \underbrace{r \sin\theta \left[ \nabla \times (A \hat{\mathbf{e}}_\phi) \right] \cdot \nabla \Omega}_{\text{efecto }\Omega} + \eta_t \left( \nabla^2 - \frac{1}{r^2 \sin^2\theta} \right) B \]</div><span class="ec-num">(4)</span></div>
+  <div class="prose stack">
+    <p>En la ecuación de B se omite un término α, mucho menor que el efecto Ω en el Sol. Por eso el modelo se llama <b>αΩ</b>. El ciclo completo funciona así:</p>
+  </div>
+
+  <figure class="diagrama">
+    <svg viewBox="0 0 720 290" role="img" aria-label="Ciclo del dínamo αΩ: la rotación diferencial convierte campo poloidal en toroidal (efecto Ω) y la convección helicoidal convierte toroidal en poloidal (efecto α); el campo toroidal intenso frena el efecto α, y ambos campos se pierden por difusión turbulenta.">
+      <defs>
+        <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+        <marker id="flecha-q" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#c75a12"/>
+        </marker>
+      </defs>
+      <g font-family="Source Sans 3, system-ui, sans-serif" fill="currentColor">
+        <!-- difusión -->
+        <text x="145" y="100" text-anchor="middle" font-size="12" opacity="0.75">se pierde por difusión: ∂²/∂θ² − 1</text>
+        <text x="575" y="100" text-anchor="middle" font-size="12" opacity="0.75">se pierde por difusión: ∂²/∂θ² − 1</text>
+        <!-- cajas -->
+        <rect x="40" y="115" width="210" height="76" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="145" y="146" text-anchor="middle" font-size="15" font-weight="700">Campo poloidal</text>
+        <text x="145" y="172" text-anchor="middle" font-size="13" font-family="JetBrains Mono, monospace">A(θ, t)</text>
+        <rect x="470" y="115" width="210" height="76" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="575" y="146" text-anchor="middle" font-size="15" font-weight="700">Campo toroidal</text>
+        <text x="575" y="172" text-anchor="middle" font-size="13" font-family="JetBrains Mono, monospace">B(θ, t) → manchas</text>
+        <!-- efecto Ω -->
+        <path d="M250 135 C 330 60, 390 60, 470 135" fill="none" stroke="currentColor" stroke-width="1.8" marker-end="url(#flecha)"/>
+        <text x="360" y="36" text-anchor="middle" font-size="13" font-weight="700">efecto Ω: la rotación diferencial estira</text>
+        <text x="360" y="55" text-anchor="middle" font-size="12" font-family="JetBrains Mono, monospace">D sinθ ∂A/∂θ</text>
+        <!-- efecto α -->
+        <path d="M470 171 C 390 246, 330 246, 250 171" fill="none" stroke="currentColor" stroke-width="1.8" marker-end="url(#flecha)"/>
+        <text x="360" y="258" text-anchor="middle" font-size="13" font-weight="700">efecto α: la convección helicoidal tuerce</text>
+        <text x="360" y="277" text-anchor="middle" font-size="12" font-family="JetBrains Mono, monospace">α(θ) B / (1 + B²)</text>
+        <!-- quenching -->
+        <path d="M530 191 Q 515 222 438 216" fill="none" stroke="#c75a12" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#flecha-q)"/>
+        <text x="540" y="226" font-size="12" fill="#c75a12">B intenso frena α</text>
+        <text x="540" y="241" font-size="12" fill="#c75a12">(quenching)</text>
+      </g>
+    </svg>
+    <figcaption>El ciclo del dínamo αΩ. La rotación diferencial convierte campo poloidal en toroidal; la convección helicoidal convierte toroidal en poloidal con el signo invertido. Si la regeneración le gana a la difusión, el campo crece y oscila. El frenado de α por el propio campo fija la amplitud final.</figcaption>
+  </figure>
+
+  <div class="prose stack">
+    <p>Parker <a class="ref" href="#r-parker55b">[1]</a> mostró en 1955 que este ciclo no produce un campo estático sino una <b>onda de dínamo</b>: un patrón de campo que se propaga en latitud y cambia de signo periódicamente. La dirección de propagación depende del signo del producto de α por la cizalla de rotación, según la <b>regla de Parker–Yoshimura</b> <a class="ref" href="#r-yoshimura">[7]</a>. Esa onda es el diagrama mariposa.</p>
+  </div>
+</section>
+
+<!-- 3 · EL MODELO 1D -->
+<section id="modelo">
+  <header>
+    <span class="eyebrow">3 · El modelo 1D</span>
+    <h2>Las ecuaciones que resuelve el script</h2>
+  </header>
+  <div class="prose stack">
+    <p>El script reduce (4) a una sola dimensión, la colatitud θ (0 en el polo norte, π en el polo sur; la latitud es λ = 90° − θ). Es un modelo del tipo de las ondas de dínamo no lineales de Stix <a class="ref" href="#r-stix">[8]</a>. En unidades adimensionales resuelve:</p>
+  </div>
+  <div class="ec destacada"><div class="ec-cuerpo">\[ \frac{\partial A}{\partial t} = \alpha(\theta)\, \frac{B}{1 + B^2} + \frac{\partial^2 A}{\partial \theta^2} - A \]
+  \[ \frac{\partial B}{\partial t} = D \sin\theta\, \frac{\partial A}{\partial \theta} + \frac{\partial^2 B}{\partial \theta^2} - B \]
+  \[ \alpha(\theta) = \cos\theta\, \sin^2\theta, \qquad A = B = 0 \ \text{en}\ \theta = 0, \pi \]</div><span class="ec-num">(5)</span></div>
+
+  <h3>Cada término, en la física y en el código</h3>
+  <div class="table-wrap">
+    <table class="terminos">
+      <thead><tr><th>Término</th><th>Qué representa</th><th>Código</th></tr></thead>
+      <tbody>
+        <tr><td>\(\alpha(\theta)\, B/(1+B^2)\)</td><td><b>Efecto α</b> con saturación. La forma \(\cos\theta\) hace que α cambie de signo en el ecuador, como la helicidad. El factor \(\sin^2\theta\) lo anula en los polos y lo concentra en latitudes medias: el máximo está en λ = 35.3°. El divisor \(1+B^2\) es el <i>α-quenching</i> algebraico: cuando |B| llega a 1 (del orden del campo de equipartición), α se reduce a la mitad <a class="ref" href="#r-stix">[8]</a><a class="ref" href="#r-bs">[11]</a>.</td><td class="num">líneas 72, 87</td></tr>
+        <tr><td>\(D \sin\theta\, \partial A/\partial\theta\)</td><td><b>Efecto Ω.</b> El campo poloidal radial, estirado por la cizalla de rotación, genera campo toroidal. Toda la intensidad de la cizalla y de α queda en un solo número adimensional, el <b>número de dínamo</b> \(D = C_\alpha C_\Omega\), con \(C_\alpha = \alpha_0 R/\eta_t\) y \(C_\Omega = \Delta\Omega\, R^2/\eta_t\) <a class="ref" href="#r-charbonneau">[9]</a>.</td><td class="num">líneas 73, 86, 88</td></tr>
+        <tr><td>\(\partial^2/\partial\theta^2\)</td><td><b>Difusión turbulenta en latitud.</b> Suaviza el campo y se lleva energía.</td><td class="num">líneas 84–85</td></tr>
+        <tr><td>\(-A,\ -B\)</td><td><b>Pérdida por difusión radial.</b> El modelo no resuelve la dirección radial; su efecto se reemplaza por un decaimiento con tasa 1 (en unidades de \(\eta_t/R^2\)).</td><td class="num">líneas 87–88</td></tr>
+        <tr><td>\(A = B = 0\) en los polos</td><td>Regularidad del campo en el eje de rotación.</td><td class="num">líneas 92–93</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Unidades</h3>
+  <div class="prose stack">
+    <p>Las longitudes se miden en radios <i>R</i> de la capa donde opera el dínamo y el tiempo en <b>tiempos de difusión</b> \(\tau = R^2/\eta_t\). El modelo no fija τ en años. El script lo calibra exigiendo que el periodo simulado de B dure 22 años, un ciclo magnético completo (sección 5).</p>
+  </div>
+
+  <h3>Qué simplificaciones hace, con respecto a (4)</h3>
+  <ol class="lista-numerada prose">
+    <li><b>Sin dirección radial.</b> Las derivadas en <i>r</i> se sustituyen por los términos −A y −B. Toda la estructura en profundidad (tacoclina, capa convectiva) desaparece.</li>
+    <li><b>Laplaciano simplificado.</b> El laplaciano en esféricas en θ es \(\partial_\theta^2 + \cot\theta\,\partial_\theta - 1/\sin^2\theta\). El modelo conserva solo \(\partial_\theta^2\).</li>
+    <li><b>Efecto Ω simplificado.</b> Con cizalla solo radial, el término exacto es proporcional a \(\partial_\theta(\sin\theta\, A) = \sin\theta\,\partial_\theta A + \cos\theta\, A\). El modelo conserva el primer sumando, que domina cuando la onda es corta en latitud.</li>
+    <li><b>Sin circulación meridional</b> y sin término α en la ecuación de B (aproximación αΩ).</li>
+    <li><b>Paridad impuesta.</b> Después de cada paso, A se simetriza y B se antisimetriza respecto al ecuador. Con los parámetros usados y una semilla aleatoria, el modo que crece por sí solo es el <i>cuadrupolar</i>, con la misma polaridad en ambos hemisferios; lo comprobamos al construir el modelo. La ley de Hale exige el <i>dipolar</i>, así que se fuerza. La selección de paridad es un problema abierto conocido en los modelos de dínamo <a class="ref" href="#r-chatterjee">[19]</a>.</li>
+  </ol>
+</section>
+
+<!-- 4 · SCRIPT -->
+<section id="script">
+  <header>
+    <span class="eyebrow">4 · Cómo funciona el script</span>
+    <h2>src/modelo_dinamo.py, paso a paso</h2>
+    <p class="muted prose">El script tiene dos partes: <code>simular()</code> integra las ecuaciones y <code>correr()</code> analiza el resultado, guarda la figura y la tabla y lo envía a la página en vivo. Los números de línea corresponden a la versión actual del archivo.</p>
+  </header>
+
+  <ol class="pasos">
+    <li>
+      <h3>Malla en colatitud</h3>
+      <p>121 puntos equiespaciados de θ = 0 a π, así que Δθ = π/120 = 1.5°. θ = 0 es el polo norte.</p>
+<pre class="codigo"><span class="ln">69</span>th = np.linspace(0, np.pi, n)
+<span class="ln">70</span>h = th[1] - th[0]</pre>
+    </li>
+    <li>
+      <h3>Paso de tiempo</h3>
+      <p>El esquema es explícito (Euler hacia adelante en el tiempo, diferencias centradas en el espacio, FTCS). Para la difusión es estable solo si \(\Delta t \le \Delta\theta^2/2\) <a class="ref" href="#r-nr">[23]</a>. El script usa \(\Delta t = 0.2\,\Delta\theta^2 = 1.37\times 10^{-4}\), con margen de 2.5 veces. Con \(t_{\max} = 8\) son 58 361 pasos.</p>
+<pre class="codigo"><span class="ln">71</span>dt = 0.2 * h * h  # estabilidad del esquema explícito de difusión: dt &lt; h²/2</pre>
+    </li>
+    <li>
+      <h3>Perfiles y condición inicial</h3>
+      <p>Se calculan α(θ) y sinθ una sola vez. El campo parte de una semilla poloidal muy débil (amplitud 10⁻³) con 10% de ruido, y sin campo toroidal. La forma exacta de la semilla no importa: si D supera el valor crítico, el dínamo amplifica cualquier perturbación. La semilla fija del generador (<code>semilla=0</code>) hace que cada ejecución dé exactamente el mismo resultado.</p>
+<pre class="codigo"><span class="ln">72</span>alfa = np.cos(th) * np.sin(th) ** 2
+<span class="ln">73</span>s = np.sin(th)
+<span class="ln">75</span>rng = np.random.default_rng(semilla)
+<span class="ln">76</span>A = 1e-3 * s * (1 + 0.1 * rng.standard_normal(n))
+<span class="ln">77</span>B = np.zeros(n)</pre>
+    </li>
+    <li>
+      <h3>El bucle de integración</h3>
+      <p>En cada paso: (a) derivadas por diferencias finitas centradas en los puntos interiores; (b) avance simultáneo de A y B, porque la tupla usa los valores viejos de ambos en los dos lados; (c) imposición de la paridad dipolar reflejando el arreglo respecto al ecuador; (d) campo nulo en los polos.</p>
+<pre class="codigo"><span class="ln">84</span>lapA[1:-1] = (A[2:] - 2 * A[1:-1] + A[:-2]) / h**2
+<span class="ln">85</span>lapB[1:-1] = (B[2:] - 2 * B[1:-1] + B[:-2]) / h**2
+<span class="ln">86</span>dA[1:-1] = (A[2:] - A[:-2]) / (2 * h)
+<span class="ln">87</span>A, B = (A + dt * (alfa * B / (1 + B * B) + lapA - A),
+<span class="ln">88</span>        B + dt * (D * s * dA + lapB - B))
+<span class="ln">90</span>A = 0.5 * (A + A[::-1])   # A simétrico
+<span class="ln">91</span>B = 0.5 * (B - B[::-1])   # B antisimétrico
+<span class="ln">92</span>A[[0, -1]] = 0.0
+<span class="ln">93</span>B[[0, -1]] = 0.0</pre>
+      <p>Como la malla es simétrica, <code>A[::-1]</code> es el valor en la latitud opuesta: el punto de −λ queda sobre el de +λ.</p>
+    </li>
+    <li>
+      <h3>Guardado de cuadros y página en vivo</h3>
+      <p>Cada 38 pasos se guarda un cuadro (1536 en total). Si la página en vivo está abierta, cada cuadro se envía al navegador, que dibuja el diagrama mariposa mientras se integra. En ese caso se hace una pausa de 4 ms por cuadro para que se alcance a ver, así que la simulación dura unos 8 segundos en vez de 2.</p>
+<pre class="codigo"><span class="ln">94</span>if k % cada == 0:
+<span class="ln">95</span>    ts.append(k * dt)
+<span class="ln">97</span>    Bs.append(B.copy())
+<span class="ln">99</span>    al_guardar(k * dt, B)      # → emitir("dinamo_cuadro", ...) línea 132</pre>
+    </li>
+    <li>
+      <h3>Periodo</h3>
+      <p>Se descarta la primera mitad de la simulación (crecimiento inicial) y se buscan los cruces por cero de B en la latitud 30°. Dos cruces consecutivos son medio periodo. Si hay menos de cuatro cruces, no hay oscilación: el campo decayó o quedó estacionario, y el script se detiene con un mensaje.</p>
+<pre class="codigo"><span class="ln">105</span>cruces = t[np.where(np.diff(np.sign(serie)) != 0)[0]]
+<span class="ln">106</span>return 2 * np.mean(np.diff(cruces)) if len(cruces) &gt; 3 else np.nan</pre>
+    </li>
+    <li>
+      <h3>Escala a años y diagnósticos</h3>
+      <p>El factor de escala es 22 años dividido por el periodo en unidades de difusión. Luego se calculan dos diagnósticos:</p>
+      <ul>
+        <li><b>Migración:</b> latitud donde |B| es máximo en el hemisferio norte, en cada instante.</li>
+        <li><b>Actividad:</b> ⟨B²⟩, el promedio de B² en |λ| &lt; 40°. Es el análogo del número de manchas: mide la energía magnética toroidal disponible para formarlas.</li>
+      </ul>
+<pre class="codigo"><span class="ln">145</span>escala = AÑOS_CICLO_MAGNETICO / P
+<span class="ln">152</span>lat_max = lat[norte][np.argmax(np.abs(Bv[:, norte]), axis=1)]
+<span class="ln">155</span>actividad = (Bv[:, bajas] ** 2).mean(axis=1)</pre>
+    </li>
+    <li>
+      <h3>Salidas</h3>
+      <ul>
+        <li><code>figuras/fig5_mariposa_modelo.png</code>: diagrama mariposa de los últimos <code>--ciclos</code> ciclos magnéticos, con la curva de actividad.</li>
+        <li><code>data/processed/dinamo_serie.csv</code>: columnas <code>anio</code>, <code>lat_max_norte</code> y <code>actividad</code>.</li>
+        <li>Consola: D, el periodo y el rango de migración.</li>
+        <li>Página en vivo: configuración, cuadros y resultado (eventos <code>dinamo_config</code>, <code>dinamo_cuadro</code>, <code>dinamo_fin</code>).</li>
+      </ul>
+    </li>
+  </ol>
+
+  <h3>Parámetros de línea de comandos</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Opción</th><th>Por defecto</th><th>Efecto</th></tr></thead>
+      <tbody>
+        <tr><td><code>--D</code></td><td class="num">−2000</td><td>Número de dínamo. Negativo: migración al ecuador. Positivo: hacia los polos. Por debajo del valor crítico no hay dínamo.</td></tr>
+        <tr><td><code>--ciclos</code></td><td class="num">6</td><td>Ciclos magnéticos que se muestran en la figura (solo afecta la figura y la tabla).</td></tr>
+        <tr><td><code>--pausa</code></td><td class="num">0.004 s</td><td>Pausa entre cuadros cuando la página en vivo está abierta. Sin la página no se aplica.</td></tr>
+      </tbody>
+    </table>
+  </div>
+<pre class="terminal">npm run dinamo                         <span class="c"># D = −2000</span>
+npm run dinamo -- --D -600             <span class="c"># justo sobre el umbral: crece muy lento</span>
+npm run dinamo -- --D 2000             <span class="c"># migración hacia los polos</span>
+npm run dinamo -- --D -8000 --pausa 0.02</pre>
+</section>
+
+<!-- 5 · RESULTADOS -->
+<section id="resultados">
+  <header>
+    <span class="eyebrow">5 · Resultados medidos</span>
+    <h2>Qué hace el modelo según D</h2>
+    <p class="muted prose">Valores medidos corriendo <code>simular()</code> con t<sub>max</sub> = 8 (el mismo código del proyecto, 29 de septiembre de 2026). σ es la tasa de crecimiento del campo mientras es débil; P, el periodo de B en tiempos de difusión; la amplitud es el máximo de |B| en el último cuarto de la simulación.</p>
+  </header>
+  <div class="table-wrap">
+    <table class="resultados">
+      <thead><tr><th>D</th><th>Régimen</th><th class="minuscula">σ</th><th>P</th><th>Amplitud |B|</th><th>Migración (norte)</th></tr></thead>
+      <tbody>
+        <tr><td class="num">−100</td><td>decae</td><td class="num">−2.51</td><td class="num">1.84</td><td class="num">≈ 0</td><td>63° → 20°, al ecuador</td></tr>
+        <tr><td class="num">−300</td><td>decae</td><td class="num">−1.48</td><td class="num">0.95</td><td class="num">≈ 0</td><td>58° → 16°, al ecuador</td></tr>
+        <tr><td class="num">−500</td><td>decae lento</td><td class="num">−0.41</td><td class="num">0.67</td><td class="num">≈ 0</td><td>54° → 15°, al ecuador</td></tr>
+        <tr class="umbral"><td class="num">−587</td><td colspan="5"><b>umbral:</b> σ = 0, el dínamo se enciende</td></tr>
+        <tr><td class="num">−600</td><td>crece muy lento</td><td class="num">+0.03</td><td class="num">–</td><td class="num">–</td><td>–</td></tr>
+        <tr><td class="num">−1000</td><td>oscila, saturado</td><td class="num">–</td><td class="num">0.81</td><td class="num">1.75</td><td>54° → 15°, al ecuador</td></tr>
+        <tr class="actual"><td class="num">−2000</td><td>oscila, saturado <span class="chip ok">por defecto</span></td><td class="num">–</td><td class="num">0.92</td><td class="num">3.27</td><td>54° → 16°, al ecuador</td></tr>
+        <tr><td class="num">−4000</td><td>oscila, saturado</td><td class="num">–</td><td class="num">0.97</td><td class="num">5.21</td><td>53° → 16°, al ecuador</td></tr>
+        <tr><td class="num">−8000</td><td>oscila, saturado</td><td class="num">–</td><td class="num">0.99</td><td class="num">7.85</td><td>53° → 16°, al ecuador</td></tr>
+        <tr><td class="num">+1000</td><td>decae</td><td class="num">−1.34</td><td class="num">0.39</td><td class="num">≈ 0</td><td>hacia los polos</td></tr>
+        <tr class="umbral"><td class="num">+1343</td><td colspan="5"><b>umbral</b> de la rama que migra hacia los polos</td></tr>
+        <tr><td class="num">+2000</td><td>oscila, saturado</td><td class="num">–</td><td class="num">0.36</td><td class="num">1.14</td><td>35° → 68°, a los polos</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="nota-tabla prose">σ solo se puede medir mientras el campo es débil; con |D| grande crece tan rápido que la ventana de medición queda vacía (–). En las filas que decaen, P es el periodo de la oscilación amortiguada. Los umbrales se obtuvieron por bisección, comprobando si la amplitud crece entre t = 2 y t = 6.</p>
+
+  <div class="prose stack">
+    <h3>Cómo leer la tabla</h3>
+    <ul class="lista">
+      <li><b>Hay un umbral.</b> Con |D| pequeño la difusión le gana a la regeneración y el campo muere. El dínamo se enciende en D ≈ −587. La rama que migra a los polos necesita más: D ≈ +1343.</li>
+      <li><b>Cerca del umbral, el periodo baja al crecer |D|</b> (1.84 → 0.67 entre D = −100 y −500). Es lo esperado para ondas de Parker lineales, cuya frecuencia crece aproximadamente como |D|<sup>1/2</sup> <a class="ref" href="#r-parker55b">[1]</a><a class="ref" href="#r-charbonneau">[9]</a>.</li>
+      <li><b>Ya saturado, el periodo sube</b> y se estabiliza cerca de 1 (0.81 → 0.99). El quenching frena el efecto α y la onda se vuelve más lenta.</li>
+      <li><b>La amplitud crece más lento que D:</b> al duplicar D, |B| aumenta entre 1.9 y 1.5 veces, cada vez menos. Es la huella del quenching algebraico.</li>
+      <li><b>La latitud de migración casi no depende de D</b> (54° → 15–16°). La fija sobre todo el perfil α(θ), que es máximo en λ = 35°, no la intensidad del dínamo.</li>
+    </ul>
+
+    <h3>Calibración en años y un chequeo físico</h3>
+    <p>Con D = −2000, P = 0.923 tiempos de difusión. Si eso corresponde a 22 años, entonces \(\tau = R^2/\eta_t = 23.8\) años. Despejando la difusividad turbulenta:</p>
+  </div>
+  <div class="ec"><div class="ec-cuerpo">\[ \eta_t = \frac{R^2}{\tau} \approx \begin{cases} 6.4 \times 10^{12}\ \text{cm}^2\,\text{s}^{-1} & (R = R_\odot) \\ 3.2 \times 10^{12}\ \text{cm}^2\,\text{s}^{-1} & (R = 0.7\,R_\odot,\ \text{base de la zona convectiva}) \end{cases} \]</div><span class="ec-num">(6)</span></div>
+  <div class="prose stack">
+    <p>Las estimaciones de longitud de mezcla para la zona convectiva dan \(\eta_t \sim 10^{12}\text{–}10^{13}\ \text{cm}^2\,\text{s}^{-1}\) <a class="ref" href="#r-charbonneau">[9]</a><a class="ref" href="#r-ossendrijver">[10]</a>. Que la calibración caiga en ese rango no demuestra que el modelo sea correcto, pero indica que la escala de tiempo es físicamente razonable.</p>
+  </div>
+
+  <figure class="figura">
+    <img src="/figuras/fig5_mariposa_modelo.png" alt="Diagrama mariposa simulado con D = -2000: bandas de campo toroidal rojas y azules que migran de unos 54 grados hacia el ecuador, con signo opuesto en cada hemisferio, y debajo la curva de actividad con ciclos de subida rápida y bajada lenta." loading="lazy">
+    <figcaption><b>Salida del script con D = −2000.</b> Arriba, B(λ, t): cada banda migra hacia el ecuador y el signo se invierte en cada ciclo y entre hemisferios. Los puntos negros marcan la latitud del máximo en el norte. Abajo, la actividad ⟨B²⟩ en |λ| &lt; 40°: sube rápido y baja lento, pero todos los ciclos son idénticos. Compárela con el diagrama mariposa observado (figura 2 del proyecto), donde las fulguraciones aparecen entre ~±30° y ~±5°.</figcaption>
+  </figure>
+</section>
+
+<!-- 6 · LIMITACIONES -->
+<section id="limites">
+  <header>
+    <span class="eyebrow">6 · Limitaciones</span>
+    <h2>Qué no hay que pedirle a este modelo</h2>
+  </header>
+
+  <div class="callout">
+    <b>El problema del signo de D</b>
+    <p>Según la regla de Parker–Yoshimura, para que la onda migre al ecuador en el hemisferio norte con α &gt; 0 hace falta que la rotación disminuya hacia afuera (\(\partial\Omega/\partial r &lt; 0\)). La heliosismología mostró que en la tacoclina, a latitudes bajas, ocurre lo contrario (\(\partial\Omega/\partial r &gt; 0\)) <a class="ref" href="#r-schou">[16]</a>. En este modelo elegimos D &lt; 0 porque así se reproduce la ley de Spörer, no porque se derive de la rotación medida. Resolver esta contradicción motivó los modelos de <b>transporte de flujo tipo Babcock–Leighton</b>, en los que una circulación meridional lleva el campo hacia el ecuador <a class="ref" href="#r-babcock">[24]</a><a class="ref" href="#r-leighton">[25]</a><a class="ref" href="#r-csd">[18]</a><a class="ref" href="#r-dc">[17]</a>, y los <b>dínamos de interfase</b> <a class="ref" href="#r-parker93">[22]</a>.</p>
+  </div>
+
+  <ul class="lista prose">
+    <li><b>Latitudes demasiado altas.</b> Las bandas migran de 54° a 16°; las manchas reales, de ~30° a ~5° <a class="ref" href="#r-hathaway">[12]</a>. Además, el campo simulado llega hasta los polos.</li>
+    <li><b>Ciclos idénticos.</b> El modelo es determinista: no reproduce la variación de amplitud entre ciclos ni episodios como el mínimo de Maunder. Hace falta agregar fluctuaciones a α <a class="ref" href="#r-choudhuri92">[20]</a>.</li>
+    <li><b>Paridad impuesta.</b> La ley de Hale se cumple porque el código la fuerza, no porque el modelo la elija.</li>
+    <li><b>Sin estructura radial</b> ni curvatura completa (sección 3). No dice nada sobre dónde opera el dínamo.</li>
+    <li><b>Quenching algebraico simple.</b> Cómo satura realmente α en el Sol es un tema abierto. Hay argumentos a favor de un quenching mucho más fuerte, el llamado quenching catastrófico <a class="ref" href="#r-vc">[21]</a><a class="ref" href="#r-bs">[11]</a>.</li>
+    <li><b>Unidades calibradas, no predichas.</b> La duración del ciclo en años es un dato de entrada (22 años), no un resultado.</li>
+  </ul>
+  <p class="prose">Con todo esto, el modelo sirve para entender el <b>mecanismo</b>: por qué hay umbral, por qué el campo oscila, qué fija la dirección de migración y cómo satura. No sirve para <b>pronosticar</b> ciclos reales.</p>
+</section>
+
+<!-- 7 · SIGUIENTE -->
+<section id="siguiente">
+  <header>
+    <span class="eyebrow">7 · Próximos pasos</span>
+    <h2>Cómo llevarlo más lejos</h2>
+  </header>
+  <ol class="lista-numerada prose">
+    <li><b>Ruido en α.</b> Multiplicar α por \(1 + \epsilon\,\xi(t)\), con ξ un ruido de correlación corta, para obtener ciclos de amplitud variable y compararlos con la serie de manchas <a class="ref" href="#r-choudhuri92">[20]</a>.</li>
+    <li><b>Ajustar a la observación.</b> Buscar el perfil α(θ) y el valor de D que mejor reproducen la latitud y el periodo del diagrama mariposa observado. El laboratorio permite hacerlo a mano; automatizarlo es un problema de inferencia (por ejemplo, un emulador neuronal del dínamo más inferencia bayesiana).</li>
+    <li><b>Modelo 2D de transporte de flujo.</b> Resolver (4) en (r, θ) con la rotación diferencial medida y circulación meridional <a class="ref" href="#r-dc">[17]</a>. Es el paso natural después de los modelos 1D de esta página.</li>
+    <li><b>Probar sin paridad impuesta.</b> Quitar las líneas 90–91 y ver cuál modo gana según D y el perfil de α <a class="ref" href="#r-chatterjee">[19]</a>.</li>
+  </ol>
+</section>
+
+<!-- 8 · OTROS MODELOS -->
+<section id="otros">
+  <header>
+    <span class="eyebrow">8 · Otros modelos</span>
+    <h2>Los modelos del laboratorio</h2>
+    <p class="muted prose">El laboratorio del sitio (con contraseña) corre el modelo de esta página y tres más. En todos se pueden cambiar los parámetros y partes de la ecuación: el perfil α(θ) se escribe como fórmula, y el quenching, el término Ω, el laplaciano y la paridad se eligen de una lista. Con los valores por defecto, el modelo 1 reproduce exactamente <code>src/modelo_dinamo.py</code> (diferencia máxima 3×10⁻¹⁴).</p>
+  </header>
+
+  <h3>Modelo 2 · Dínamo αΩ con fluctuaciones</h3>
+  <div class="prose stack">
+    <p>La convección es turbulenta, así que α no es constante. El modelo multiplica el efecto α por \(1 + \varepsilon\,\xi(t)\), donde ξ es un ruido de Ornstein–Uhlenbeck con tiempo de correlación τ <a class="ref" href="#r-choudhuri92">[20]</a>. Con ε = 0.6 y τ = 0.05 (≈ 1 año), la altura de los máximos de actividad varía un <b>29%</b> entre ciclos, parecido al 31% del registro de manchas desde 1749. El periodo y la migración casi no cambian.</p>
+  </div>
+
+  <h3>Modelo 3 · Transporte de flujo en dos capas</h3>
+  <div class="ec"><div class="ec-cuerpo">\[ \begin{aligned}
+    \partial_t A_s &= \alpha(\theta)\,Q(B) + \eta\,\partial_\theta^2 A_s - c_r A_s + \partial_\theta(v A_s)\\
+    \partial_t A_b &= (A_s - A_b)/\tau_r + \eta\,\partial_\theta^2 A_b - c_r A_b - \partial_\theta(v A_b)\\
+    \partial_t B &= D\sin\theta\,\partial_\theta A_b + \eta\,\partial_\theta^2 B - c_r B - \partial_\theta(v B)
+  \end{aligned} \]</div><span class="ec-num">(7)</span></div>
+  <div class="prose stack">
+    <p>Representa el circuito de la circulación meridional: el campo poloidal viaja hacia los polos en la superficie (A<sub>s</sub>), se hunde en un tiempo τ<sub>r</sub>, y vuelve hacia el ecuador por la base (A<sub>b</sub>), donde la rotación lo convierte en toroidal <a class="ref" href="#r-csd">[18]</a><a class="ref" href="#r-dc">[17]</a>. Lo que se midió con el código:</p>
+    <ul class="lista">
+      <li>Con D = −6000 y v₀ = 12, las bandas migran de <b>30° a 9°</b>, mucho más cerca de las manchas reales (~30° → 5°) que el modelo 1 (54° → 16°).</li>
+      <li><b>El periodo lo fija la corriente:</b> con v₀ = 4, 8 y 12, el periodo es 0.76, 0.47 y 0.36 tiempos de difusión. Es la firma de los modelos de transporte de flujo.</li>
+      <li>Una primera versión de una sola capa no funcionaba: la corriente amontonaba el campo en el ecuador y la onda se apagaba.</li>
+      <li><b>Con D &gt; 0 tampoco oscila</b> en esta versión simplificada. Resolver el problema del signo (sección 6) requiere un modelo 2D completo.</li>
+    </ul>
+  </div>
+
+  <h3>Modelo 4 · Oscilador de Van der Pol</h3>
+  <div class="ec"><div class="ec-cuerpo">\[ \ddot{x} - \mu\,(1 - x^2)\,\dot{x} + x = \sigma\,\xi(\tau), \qquad \tau = \tfrac{2\pi}{P}\,t, \qquad S = s_0\,x^2 \]</div><span class="ec-num">(8)</span></div>
+  <div class="prose stack">
+    <p>Un modelo de bajo orden, sin latitud: x es el campo toroidal global y el número de manchas es proporcional a x² <a class="ref" href="#r-mgm">[26]</a>. Es el único que se compara directamente con el registro de manchas de SILSO desde 1749. Con μ = 1, σ = 0.6 y P = 21 años, el ciclo simulado dura <b>12.2 ± 1.6 años</b>, frente a <b>11.0 ± 1.9</b> en los 26 ciclos observados; la altura de los máximos varía 18% (observado: 31%). Con ruido no predice las fechas de los ciclos, solo sus propiedades estadísticas.</p>
+  </div>
+</section>
+
+<!-- REFERENCIAS -->
+<section id="refs">
+  <header>
+    <span class="eyebrow">Referencias</span>
+    <h2>Bibliografía</h2>
+  </header>
+  <ol class="refs">
+    <li id="r-parker55b">Parker, E. N. (1955). Hydromagnetic dynamo models. <i>The Astrophysical Journal</i>, 122, 293.</li>
+    <li id="r-parker55a">Parker, E. N. (1955). The formation of sunspots from the solar toroidal field. <i>The Astrophysical Journal</i>, 121, 491.</li>
+    <li id="r-cowling">Cowling, T. G. (1933). The magnetic field of sunspots. <i>Monthly Notices of the Royal Astronomical Society</i>, 94, 39.</li>
+    <li id="r-skr">Steenbeck, M., Krause, F. y Rädler, K.-H. (1966). Berechnung der mittleren Lorentz-Feldstärke v×B für ein elektrisch leitendes Medium in turbulenter, durch Coriolis-Kräfte beeinflußter Bewegung. <i>Zeitschrift für Naturforschung A</i>, 21, 369.</li>
+    <li id="r-kr">Krause, F. y Rädler, K.-H. (1980). <i>Mean-Field Magnetohydrodynamics and Dynamo Theory</i>. Pergamon Press.</li>
+    <li id="r-moffatt">Moffatt, H. K. (1978). <i>Magnetic Field Generation in Electrically Conducting Fluids</i>. Cambridge University Press.</li>
+    <li id="r-yoshimura">Yoshimura, H. (1975). Solar-cycle dynamo wave propagation. <i>The Astrophysical Journal</i>, 201, 740.</li>
+    <li id="r-stix">Stix, M. (1972). Non-linear dynamo waves. <i>Astronomy and Astrophysics</i>, 20, 9.</li>
+    <li id="r-charbonneau">Charbonneau, P. (2020). Dynamo models of the solar cycle. <i>Living Reviews in Solar Physics</i>, 17, 4.</li>
+    <li id="r-ossendrijver">Ossendrijver, M. (2003). The solar dynamo. <i>The Astronomy and Astrophysics Review</i>, 11, 287.</li>
+    <li id="r-bs">Brandenburg, A. y Subramanian, K. (2005). Astrophysical magnetic fields and nonlinear dynamo theory. <i>Physics Reports</i>, 417, 1.</li>
+    <li id="r-hathaway">Hathaway, D. H. (2015). The solar cycle. <i>Living Reviews in Solar Physics</i>, 12, 4.</li>
+    <li id="r-hale">Hale, G. E., Ellerman, F., Nicholson, S. B. y Joy, A. H. (1919). The magnetic polarity of sun-spots. <i>The Astrophysical Journal</i>, 49, 153.</li>
+    <li id="r-maunder">Maunder, E. W. (1904). Note on the distribution of sun-spots in heliographic latitude, 1874–1902. <i>Monthly Notices of the Royal Astronomical Society</i>, 64, 747.</li>
+    <li id="r-waldmeier">Waldmeier, M. (1935). Neue Eigenschaften der Sonnenfleckenkurve. <i>Astronomische Mitteilungen der Eidgenössischen Sternwarte Zürich</i>, 14, 105.</li>
+    <li id="r-schou">Schou, J. et al. (1998). Helioseismic studies of differential rotation in the solar envelope by the Solar Oscillations Investigation using the Michelson Doppler Imager. <i>The Astrophysical Journal</i>, 505, 390.</li>
+    <li id="r-dc">Dikpati, M. y Charbonneau, P. (1999). A Babcock–Leighton flux transport dynamo with solar-like differential rotation. <i>The Astrophysical Journal</i>, 518, 508.</li>
+    <li id="r-csd">Choudhuri, A. R., Schüssler, M. y Dikpati, M. (1995). The solar dynamo with meridional circulation. <i>Astronomy and Astrophysics</i>, 303, L29.</li>
+    <li id="r-chatterjee">Chatterjee, P., Nandy, D. y Choudhuri, A. R. (2004). Full-sphere simulations of a circulation-dominated solar dynamo: exploring the parity issue. <i>Astronomy and Astrophysics</i>, 427, 1019.</li>
+    <li id="r-choudhuri92">Choudhuri, A. R. (1992). Stochastic fluctuations of the solar dynamo. <i>Astronomy and Astrophysics</i>, 253, 277.</li>
+    <li id="r-vc">Vainshtein, S. I. y Cattaneo, F. (1992). Nonlinear restrictions on dynamo action. <i>The Astrophysical Journal</i>, 393, 165.</li>
+    <li id="r-parker93">Parker, E. N. (1993). A solar dynamo surface wave at the interface between convection and nonuniform rotation. <i>The Astrophysical Journal</i>, 408, 707.</li>
+    <li id="r-nr">Press, W. H., Teukolsky, S. A., Vetterling, W. T. y Flannery, B. P. (2007). <i>Numerical Recipes: The Art of Scientific Computing</i>, 3.ª ed., cap. 20 (ecuaciones en derivadas parciales). Cambridge University Press.</li>
+    <li id="r-babcock">Babcock, H. W. (1961). The topology of the Sun's magnetic field and the 22-year cycle. <i>The Astrophysical Journal</i>, 133, 572.</li>
+    <li id="r-leighton">Leighton, R. B. (1969). A magneto-kinematic model of the solar cycle. <i>The Astrophysical Journal</i>, 156, 1.</li>
+    <li id="r-mgm">Mininni, P. D., Gómez, D. O. y Mindlin, G. B. (2000). Stochastic relaxation oscillator model for the solar cycle. <i>Physical Review Letters</i>, 85, 5476.</li>
+  </ol>
+  <p class="muted prose">Para empezar, las mejores lecturas son la revisión de Charbonneau [9], que tiene una sección completa sobre dínamos αΩ de campo medio, y la de Hathaway [12] para las observaciones del ciclo.</p>
+</section>
+
+<footer>
+  <span>Modelo: <code>src/modelo_dinamo.py</code>. Valores de la sección 5 medidos con ese código el 29 de septiembre de 2026.</span>
+</footer>
+
+</div>
+<!--/contenido-->
+<script type="module" src="/src/documento.js"></script>
+</body>
+</html>

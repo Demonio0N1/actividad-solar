@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Monitoreo del Sol en vivo</title>
+<meta name="description" content="El Sol de hoy, la actividad solar desde 1995 y un modelo del ciclo solar, actualizados cada día.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/src/tokens.css">
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']] }, svg: { fontCache: 'global' }, options: { enableMenu: false }, startup: { typeset: false } };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js" defer></script>
+</head>
+<body>
+<nav class="sitio" aria-label="Secciones del sitio">
+  <a class="marca" href="/">Monitoreo del Sol</a>
+  <a class="tab" href="/" aria-current="page">En vivo</a>
+  <a class="tab" href="/modelo">Modelo</a>
+  <a class="tab" href="/meteorologia">Meteorología</a>
+  <a class="tab" href="/laboratorio">Laboratorio</a>
+  <span class="espacio"></span>
+  <span class="conexion" id="conexion" data-estado="sin-servidor">conectando…</span>
+</nav>
+
+<main class="vivo">
+  <header class="intro">
+    <h1>Monitoreo del Sol en vivo</h1>
+    <p>Imágenes del Sol de cualquier día desde 1996, la actividad en rayos X, ultravioleta y manchas desde 1995, y un modelo del campo magnético que produce el ciclo solar. Los datos se descargan y procesan solos una vez al día.</p>
+    <p class="estado-datos" id="estado-datos">Cargando el estado de los datos…</p>
+  </header>
+
+  <!-- El Sol ese día -->
+  <section class="panel sol" id="sol" aria-labelledby="t-sol">
+    <header class="panel-cab">
+      <div class="titulo">
+        <h2 id="t-sol">El Sol ese día</h2>
+        <span class="chip todo" id="sol-estado">sin imagen</span>
+      </div>
+      <p class="nota">Imágenes de SOHO/MDI (1996–2011) y SDO/HMI (2011–hoy), del archivo de SOHO.</p>
+    </header>
+
+    <form class="sol-controles" id="sol-form">
+      <div class="campo">
+        <label for="sol-fecha">Fecha (UT)</label>
+        <div class="fecha-nav">
+          <button type="button" class="boton-texto" id="sol-anterior" aria-label="Día anterior">◀</button>
+          <input type="date" id="sol-fecha" min="1996-05-19" required>
+          <button type="button" class="boton-texto" id="sol-siguiente" aria-label="Día siguiente">▶</button>
+        </div>
+      </div>
+      <fieldset class="campo segmentado">
+        <legend>Imagen</legend>
+        <div class="opciones">
+          <label><input type="radio" name="sol-tipo" value="continuo" checked> Manchas (luz visible)</label>
+          <label><input type="radio" name="sol-tipo" value="magnetograma"> Campo magnético</label>
+        </div>
+      </fieldset>
+      <div class="botones">
+        <button type="submit" class="boton">Mostrar imagen</button>
+        <button type="button" class="boton secundario" id="sol-ahora">Ahora, en vivo</button>
+      </div>
+    </form>
+
+    <div class="sol-cuerpo">
+      <div class="sol-imagen" id="sol-marco">
+        <img id="sol-img" alt="" hidden>
+        <div class="vacio" id="sol-vacio"><p>Elija un día y pulse <b>Mostrar imagen</b>.</p></div>
+        <div class="cargando" id="sol-cargando" hidden>Descargando imagen de SOHO…</div>
+      </div>
+      <div class="sol-info">
+        <div class="campo">
+          <label for="sol-hora">Hora de la imagen (UT)</label>
+          <select id="sol-hora" disabled></select>
+        </div>
+        <dl class="sol-datos">
+          <div><dt>Instrumento</dt><dd id="sol-inst">–</dd></div>
+          <div><dt>Número de manchas del día</dt><dd id="sol-manchas">–</dd></div>
+          <div><dt>Fulguraciones del día</dt><dd id="sol-fulg">–</dd></div>
+        </dl>
+        <div id="sol-mayores" class="sol-mayores"></div>
+        <div class="acciones">
+          <a class="boton" id="sol-guardar" href="#" aria-disabled="true">Guardar imagen</a>
+          <a class="boton-texto" id="sol-abrir" href="#" target="_blank" rel="noopener" aria-disabled="true">Abrir en tamaño completo</a>
+        </div>
+        <p class="nota" id="sol-copia"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ciclo solar observado -->
+  <section class="bloque" aria-labelledby="t-datos">
+    <header class="bloque-cab">
+      <h2 id="t-datos">El ciclo solar observado</h2>
+      <p>Manchas solares (SILSO) y fulguraciones en rayos X (GOES) desde 1995: tres ciclos de once años.</p>
+    </header>
+    <div class="fila-datos">
+      <div class="panel">
+        <header class="panel-cab"><h3>Manchas y fulguraciones por mes</h3><span class="actualizado" id="act-mensual"></span></header>
+        <p class="nota">Pase el cursor sobre cualquiera de los dos gráficos: el mes seleccionado se marca en ambos.</p>
+        <div id="g-manchas" class="grafico"></div>
+        <div id="g-fulguraciones" class="grafico"></div>
+      </div>
+      <div class="panel">
+        <header class="panel-cab"><h3>Diagrama mariposa: dónde aparecen las fulguraciones</h3><span class="actualizado" id="act-mariposa"></span></header>
+        <div class="leyenda" id="leyenda-mariposa"></div>
+        <div class="mapa mapa-obs" id="obs">
+          <canvas id="obs-canvas" aria-label="Latitud de las fulguraciones C, M y X según el tiempo"></canvas>
+          <div class="tooltip" id="obs-tooltip" hidden></div>
+          <div class="vacio" id="obs-vacio" hidden><p>Aún no hay datos procesados.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modelo publicado -->
+  <section class="bloque" aria-labelledby="t-modelo">
+    <header class="bloque-cab">
+      <h2 id="t-modelo">Un modelo del ciclo</h2>
+      <p>Simulación del campo magnético que genera el ciclo solar. Compare su diagrama mariposa con el observado. <a href="/modelo">Cómo funciona el modelo</a>.</p>
+    </header>
+    <div class="panel modelo-publicado">
+      <header class="panel-cab">
+        <div class="titulo"><h3 id="pub-nombre">Modelo publicado</h3><span class="chip todo" id="pub-numero">–</span></div>
+        <span class="actualizado" id="pub-fecha"></span>
+      </header>
+      <div class="pub-cuerpo">
+        <div id="pub-visor"></div>
+        <aside class="pub-info">
+          <div class="ecuacion-caja" id="pub-ecuacion"></div>
+          <dl class="cifras-lista" id="pub-resumen"></dl>
+          <details class="pub-param"><summary>Parámetros</summary><dl class="cifras-lista" id="pub-parametros"></dl></details>
+          <p class="nota" id="pub-refs"></p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- Figuras -->
+  <section class="bloque" aria-labelledby="t-figuras">
+    <header class="bloque-cab">
+      <h2 id="t-figuras">Figuras</h2>
+      <p>Se regeneran cada día con los datos nuevos. Haga clic en una para verla en tamaño completo.</p>
+    </header>
+    <div id="figuras" class="figuras"></div>
+  </section>
+</main>
+
+<footer class="pie">
+  <p>Datos: NOAA/NCEI (GOES), ESA/NASA (SOHO, SDO), SILSO – Real Observatorio de Bélgica.</p>
+</footer>
+
+<script type="module" src="/src/vivo.js"></script>
+</body>
+</html>
